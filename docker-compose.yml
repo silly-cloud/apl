@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: venueiq_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - venueiq_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: venueiq_server
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/venueiq
+      - PORT=3001
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - venueiq_net
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: venueiq_client
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+    networks:
+      - venueiq_net
+
+volumes:
+  mongo_data:
+
+networks:
+  venueiq_net:
+    driver: bridge
